@@ -1,0 +1,12 @@
+[Unit]
+Description=Telegram and Flask bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tilda-bot
+ExecStart=/opt/tilda-bot/venv/bin/python bot.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
