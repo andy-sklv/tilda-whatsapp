@@ -44,12 +44,6 @@ sudo mkdir -p "$INSTALL_DIR"
 sudo cp -r . "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-# Создание .env, если не существует
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "Enter Telegram token:"; read TG; sed -i "s|TG_TOKEN=|TG_TOKEN=$TG|" .env
-  echo "Enter Telegram admin id:"; read ID; sed -i "s|TELEGRAM_ADMIN_ID=|TELEGRAM_ADMIN_ID=$ID|" .env
-fi
 
 # Настройка systemd
 sudo cp systemd/whatsapp-bot.service /etc/systemd/system/

@@ -7,12 +7,9 @@ from urllib.parse import unquote_plus
 from flask import Flask, request, abort
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from dotenv import load_dotenv
 
-load_dotenv()
-
-TG_TOKEN = os.getenv("TG_TOKEN")
-ADMIN_ID = int(os.getenv("TELEGRAM_ADMIN_ID", "0"))
+TG_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+ADMIN_ID = 123456789  # replace with your Telegram ID
 DATA_FILE = Path(__file__).resolve().parent / 'db.json'
 SESSIONS_DIR = Path(__file__).resolve().parent / 'sessions'
 
@@ -55,6 +52,8 @@ class SessionStore:
 
 store = SessionStore(DATA_FILE)
 app = Flask(__name__)
+telegram_app = None
+handshake_done = False
 
 
 def restricted(func):
@@ -107,19 +106,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def run_bot():
-    application = Application.builder().token(TG_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    return application
+    global telegram_app
+    telegram_app = Application.builder().token(TG_TOKEN).build()
+    telegram_app.add_handler(CommandHandler("start", start))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    return telegram_app
 
 
 @app.post('/send')
 def send():
+    global handshake_done
     user_id = request.form.get('user_id', type=int)
     if not user_id:
+        if not handshake_done:
+            handshake_done = True
+            return 'ok'
         abort(403)
     session = store.get(user_id)
     if not session or session['status'] != 'connected':
+        if telegram_app:
+            telegram_app.bot.send_message(chat_id=ADMIN_ID, text='Проблема с подключением к WhatsApp')
         abort(403)
 
     lines = []
@@ -135,12 +141,18 @@ def send():
 
     logger.info("Would send to WhatsApp: %s", text)
     # TODO: send via Baileys here
+    if telegram_app:
+        telegram_app.bot.send_message(chat_id=ADMIN_ID, text=text)
     return 'ok'
 
 
 def main():
     application = run_bot()
     application.initialize()
+    try:
+        application.bot.send_message(chat_id=ADMIN_ID, text='Сервис запущен')
+    except Exception as e:
+        logger.warning("Failed to notify startup: %s", e)
     application.start()
     try:
         app.run(host='127.0.0.1', port=8000)
