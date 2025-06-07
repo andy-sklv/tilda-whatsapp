@@ -1,4 +1,4 @@
-# Tilda WhatsApp Bot
+ Tilda WhatsApp Bot
 
 This repository contains a sample implementation of the "Tilda → WhatsApp" integration. The project lives in the `tilda-whatsapp-bot` directory.
 
