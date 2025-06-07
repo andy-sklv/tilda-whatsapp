@@ -1,5 +1,4 @@
 const { default: makeWASocket, useSingleFileAuthState } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,11 +21,14 @@ async function connect() {
       const qrImage = Buffer.from(qr).toString('base64');
       console.log(qrImage);
     }
+    if (connection === 'open') {
+      fs.writeFileSync(path.join(sessionDir, 'jid'), sock.user.id);
+      process.exit(0);
+    }
     if (connection === 'close') {
-      connect();
+      process.exit(1);
     }
   });
 }
 
 connect();
-

@@ -1,20 +1,37 @@
 import json
 import logging
 import os
+import subprocess
 from pathlib import Path
 from urllib.parse import unquote_plus
+
+from dotenv import load_dotenv
 
 from flask import Flask, request, abort
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TG_TOKEN = "7784347647:AAG58UVu_qk2jKVsDdRgGzg2-ofmxJZ9i0M"
-ADMIN_ID = 846251915  # replace with your Telegram ID
+load_dotenv()
+TG_TOKEN = os.getenv("TG_TOKEN")
+ADMIN_ID = int(os.getenv("TELEGRAM_ADMIN_ID", "0"))
 DATA_FILE = Path(__file__).resolve().parent / 'db.json'
 SESSIONS_DIR = Path(__file__).resolve().parent / 'sessions'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def send_to_whatsapp(telegram_id: int, text: str) -> bool:
+    """Send message via Baileys. Returns True on success."""
+    try:
+        subprocess.run(
+            ["node", "baileys/send.js", str(telegram_id)],
+            input=text.encode(), check=True
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to send via WhatsApp: %s", e)
+        return False
 
 
 class SessionStore:
@@ -53,7 +70,6 @@ class SessionStore:
 store = SessionStore(DATA_FILE)
 app = Flask(__name__)
 telegram_app = None
-handshake_done = False
 
 
 def restricted(func):
@@ -85,9 +101,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "О боте":
         await update.message.reply_text("Bot by Andrei Sokolov @andysklv")
     elif text == "Создать подключение":
-        os.system(f"systemctl start baileys-connect@{ADMIN_ID}.service")
+        proc = subprocess.Popen([
+            "node", "baileys/connect.js", str(ADMIN_ID)
+        ], stdout=subprocess.PIPE, text=True)
+        qr_b64 = proc.stdout.readline().strip()
         store.set_status(ADMIN_ID, 'waiting_qr')
-        await update.message.reply_text("QR запрошен")
+        if qr_b64:
+            await update.message.reply_photo(qr_b64)
+        else:
+            await update.message.reply_text("Не удалось сгенерировать QR")
     elif text == "QR-код отсканирован":
         store.set_status(ADMIN_ID, 'connected')
         await update.message.reply_text("Сессия активна")
@@ -115,12 +137,8 @@ def run_bot():
 
 @app.post('/send')
 def send():
-    global handshake_done
     user_id = request.form.get('user_id', type=int)
     if not user_id:
-        if not handshake_done:
-            handshake_done = True
-            return 'ok'
         abort(403)
     session = store.get(user_id)
     if not session or session['status'] != 'connected':
@@ -139,25 +157,35 @@ def send():
         lines.append(f"Referer: {referer}")
     text = '\n'.join(lines)
 
-    logger.info("Would send to WhatsApp: %s", text)
-    # TODO: send via Baileys here
+    logger.info("Send to WhatsApp: %s", text)
+    ok = send_to_whatsapp(user_id, text)
     if telegram_app:
         telegram_app.bot.send_message(chat_id=ADMIN_ID, text=text)
-    return 'ok'
+        if not ok:
+            telegram_app.bot.send_message(chat_id=ADMIN_ID, text='Проблема с подключением к WhatsApp')
+    if ok:
+        return 'ok'
+    abort(500)
+
+
+from threading import Thread
 
 
 def main():
     application = run_bot()
-    application.initialize()
+
+    def run_flask():
+        app.run(host='127.0.0.1', port=8000)
+
+    flask_thread = Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
     try:
         application.bot.send_message(chat_id=ADMIN_ID, text='Сервис запущен')
     except Exception as e:
         logger.warning("Failed to notify startup: %s", e)
-    application.start()
-    try:
-        app.run(host='127.0.0.1', port=8000)
-    finally:
-        application.stop()
+
+    application.run_polling()
 
 
 if __name__ == '__main__':
