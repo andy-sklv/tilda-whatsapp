@@ -8,8 +8,8 @@ from flask import Flask, request, abort
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TG_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-ADMIN_ID = 123456789  # replace with your Telegram ID
+TG_TOKEN = "7784347647:AAG58UVu_qk2jKVsDdRgGzg2-ofmxJZ9i0M"
+ADMIN_ID = 846251915  # replace with your Telegram ID
 DATA_FILE = Path(__file__).resolve().parent / 'db.json'
 SESSIONS_DIR = Path(__file__).resolve().parent / 'sessions'
 
@@ -162,4 +162,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

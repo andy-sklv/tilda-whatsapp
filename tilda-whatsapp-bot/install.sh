@@ -16,7 +16,7 @@ sudo apt-get install -y python3.11 python3.11-venv python3.11-dev
 # pip, если не установлен
 curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.11
 
-# Установка certbot (esli nuzhen HTTPS)
+# Установка certbot (для HTTPS)
 sudo apt-get install -y certbot python3-certbot-nginx
 
 # Установка nvm и Node.js 20
@@ -44,7 +44,6 @@ sudo mkdir -p "$INSTALL_DIR"
 sudo cp -r . "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-
 # Настройка systemd
 sudo cp systemd/whatsapp-bot.service /etc/systemd/system/
 sudo cp systemd/baileys-connect@.service /etc/systemd/system/
@@ -58,7 +57,12 @@ sudo ln -sf "$INSTALL_DIR"/nginx/tilda-whatsapp.conf /etc/nginx/sites-available/
 sudo ln -sf /etc/nginx/sites-available/tilda-whatsapp.conf /etc/nginx/sites-enabled/tilda-whatsapp.conf
 sudo nginx -t && sudo systemctl reload nginx
 
-# Выпуск SSL сертификата
-sudo certbot --nginx -d "$DOMAIN" || true
+# Использование существующего SSL сертификата, если он уже есть
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+  echo "🔒 Сертификат уже существует, пропускаем выпуск."
+else
+  echo "📥 Выпускаем новый сертификат..."
+  sudo certbot --nginx -d "$DOMAIN"
+fi
 
 echo "✅ Ваш веб-хук готов: https://$DOMAIN/send"
