@@ -1,0 +1,8 @@
+[Unit]
+Description=Generate WhatsApp QR for %i
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/tilda-bot
+ExecStart=/usr/bin/node baileys/connect.js %i
